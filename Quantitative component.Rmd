@@ -1,0 +1,40 @@
+---
+title: "Quantitative component"
+output: html_document
+---
+
+```{r}
+require(tidyverse)
+require(readxl)
+setwd("~/Google Drive/Manuscript data/Dispersal in a changing ocean")
+```
+
+```{r}
+d<-read_excel("Quantitative component.xlsx")
+
+dsum<-d%>%
+  mutate(Climate_conversion=(Climate_expected2100-Climate_control)/(Climate_treatment-Climate_control), #Create factor to convert experimental range to expected change by applying (expected change)/(measured change)
+         Organismal_expected2100=((Organismal_treatment-Organismal_control)/Organismal_control)*Climate_conversion)%>% #Calculate rough effect size as (difference in organismal parameter)/(control organismal parameter level), then scale by climate conversion factor
+  group_by(Species, Climate_parameter, Organismal_parameter)%>%
+  summarise(Organismal_expected2100=mean(Organismal_expected2100))
+
+
+#Final Organismal_expected2100 calculation equivalent to the following
+
+#Effect size = (Difference in organismal parameter)/(Control organismal parameter level) =Proportion change
+
+#Effect size standardized by climatic range studied = (Effect size)/(difference in climate variable between control and treatment, e.g., degree C difference) = e.g., Effect size / degree C change
+
+# Organismal_expected2100 = Climate standardized effect size * expected change in climate parameter by 2100 = Effect size / degree C change * Expected degree C change = final expected proportion change
+```
+
+```{r}
+ggplot(dsum, aes(x=Organismal_expected2100, y=Organismal_parameter, fill=Climate_parameter))+
+  geom_point(shape=21)+
+  geom_vline(xintercept=0)+
+  xlab("Expected proportional change in organismal factor by 2100")+
+  ylab("Organismal factor")+
+  theme_bw()+
+  theme(panel.grid=element_blank())
+```
+
