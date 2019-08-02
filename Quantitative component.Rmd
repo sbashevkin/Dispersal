@@ -6,7 +6,6 @@ output: html_document
 ```{r}
 require(tidyverse)
 require(readxl)
-setwd("~/Google Drive/Manuscript data/Dispersal in a changing ocean")
 ```
 
 ```{r}
