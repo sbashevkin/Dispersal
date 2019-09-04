@@ -9,8 +9,9 @@ require(readxl)
 ```
 
 ```{r}
-d<-read_excel("Quantitative component.xlsx")
-
+dorg<-read_excel("Quantitative component species list.xlsx", sheet="Organismal factors")%>%
+  filter(!isTRUE(Exclude))
+dclim<-read_excel("Quantitative component species list.xlsx", sheet="Climate factors")
 dsum<-d%>%
   mutate(Climate_conversion=(Climate_expected2100-Climate_control)/(Climate_treatment-Climate_control), #Create factor to convert experimental range to expected change by applying (expected change)/(measured change)
          Organismal_expected2100=((Organismal_treatment-Organismal_control)/Organismal_control)*Climate_conversion)%>% #Calculate rough effect size as (difference in organismal parameter)/(control organismal parameter level), then scale by climate conversion factor
