@@ -6,35 +6,76 @@ output: html_document
 ```{r}
 require(tidyverse)
 require(readxl)
+require(patchwork)
 ```
 
 ```{r}
 dorg<-read_excel("Quantitative component species list.xlsx", sheet="Organismal factors")%>%
-  filter(!isTRUE(Exclude))
-dclim<-read_excel("Quantitative component species list.xlsx", sheet="Climate factors")
+  mutate(Include=replace_na(Include, TRUE))%>%
+  filter(Include)%>%
+  rename(Specific_location=Climate_location)
+dclim<-read_excel("Quantitative component species list.xlsx", sheet="Climate factors")%>%
+  gather(-Region, -Specific_location, key="Climate_parameter", value="Climate_expected2096")%>%
+  drop_na()
+
+d<-dorg%>%
+  left_join(dclim, by=c("Climate_parameter", "Specific_location"))
+
 dsum<-d%>%
-  mutate(Climate_conversion=(Climate_expected2100-Climate_control)/(Climate_treatment-Climate_control), #Create factor to convert experimental range to expected change by applying (expected change)/(measured change)
-         Organismal_expected2100=((Organismal_treatment-Organismal_control)/Organismal_control)*Climate_conversion)%>% #Calculate rough effect size as (difference in organismal parameter)/(control organismal parameter level), then scale by climate conversion factor
-  group_by(Species, Climate_parameter, Organismal_parameter)%>%
-  summarise(Organismal_expected2100=mean(Organismal_expected2100))
+  #Divide growth by days to get growth rate
+  mutate(Organismal_treatment=if_else(Organismal_parameter=="Growth", Organismal_treatment/Exposure_days, Organismal_treatment),
+         Organismal_control=if_else(Organismal_parameter=="Growth", Organismal_control/Exposure_days, Organismal_control),
+         #Calculate instantaneous mortality/abnormal development rates 
+         Organismal_treatment=if_else(Organismal_parameter%in%c("Survival", "Development") & Organismal_treatment==100, 99.99, Organismal_treatment),
+         Organismal_control=if_else(Organismal_parameter%in%c("Survival", "Development") & Organismal_control==100, 99.99, Organismal_control))%>%
+         mutate(Organismal_treatment=if_else(Organismal_parameter%in%c("Survival", "Development"), log((100-Organismal_treatment)/100)/Exposure_days, Organismal_treatment),
+         Organismal_control=if_else(Organismal_parameter%in%c("Survival", "Development"), log((100-Organismal_control)/100)/Exposure_days, Organismal_control))%>%
+  mutate(Organismal_parameter=recode(Organismal_parameter, Growth="Growth rate"))%>%
+  mutate(Climate_conversion=(Climate_expected2096-Climate_control)/(Climate_treatment-Climate_control), #Create factor to convert experimental range to expected change by applying (expected change)/(measured change)
+         Organismal_expected2096=((Organismal_treatment-Organismal_control)/Organismal_control)*Climate_conversion)%>% #Calculate rough effect size as (difference in organismal parameter)/(control organismal parameter level), then scale by climate conversion factor
+  group_by(Species, Region, Climate_parameter, Organismal_parameter)%>%
+  summarise(Organismal_expected2096=mean(Organismal_expected2096))%>%
+  mutate(Organismal_parameter=factor(Organismal_parameter, levels=c("Phenology", "Swimming speed", "Survival", "Feeding", "Size", "Development", "Growth rate", "PLD", "Habitat detection")))
 
 
-#Final Organismal_expected2100 calculation equivalent to the following
+#Final Organismal_expected2096 calculation equivalent to the following
 
 #Effect size = (Difference in organismal parameter)/(Control organismal parameter level) =Proportion change
 
 #Effect size standardized by climatic range studied = (Effect size)/(difference in climate variable between control and treatment, e.g., degree C difference) = e.g., Effect size / degree C change
 
-# Organismal_expected2100 = Climate standardized effect size * expected change in climate parameter by 2100 = Effect size / degree C change * Expected degree C change = final expected proportion change
+# Organismal_expected2096 = Climate standardized effect size * expected change in climate parameter by 2096 = Effect size / degree C change * Expected degree C change = final expected proportion change
 ```
 
 ```{r}
-ggplot(dsum, aes(x=Organismal_expected2100, y=Organismal_parameter, fill=Climate_parameter))+
-  geom_point(shape=21)+
+ptemp<-ggplot(filter(dsum, Region=="Temperate East Pacific")%>%droplevels(), aes(x=Organismal_expected2096, y=Organismal_parameter, fill=Climate_parameter))+
+  geom_blank(aes(y=Organismal_parameter))+
+  geom_point(aes(y=as.numeric(Organismal_parameter)+(as.numeric(as.factor(Climate_parameter))-2)/(8/(7/9))), shape=21, size=2, alpha=0.8)+
   geom_vline(xintercept=0)+
-  xlab("Expected proportional change in organismal factor by 2100")+
+  facet_grid(Species~.)+
+  scale_fill_brewer(type="div", palette="RdYlBu", name="Climate parameter")+
+  scale_x_continuous(limits=c(min(dsum$Organismal_expected2096), max(dsum$Organismal_expected2096)), labels=seq(-1, 2.5, by=0.5), breaks=seq(-1, 2.5, by=0.5))+
+  xlab("Proportional change in organismal factor")+
   ylab("Organismal factor")+
+  ggtitle("Temperate East Pacific")+
   theme_bw()+
-  theme(panel.grid=element_blank())
+  theme(panel.grid=element_blank(), legend.position="none", strip.background=element_blank(), strip.text = element_text(face = "italic", size=7), plot.title = element_text(hjust=0.5))
+
+ptrop<-ggplot(filter(dsum, Region=="Tropical Indian/Pacific"), aes(x=Organismal_expected2096, y=Organismal_parameter, fill=Climate_parameter))+
+  geom_blank(aes(y=Organismal_parameter))+
+  geom_point(aes(y=as.numeric(Organismal_parameter)+(as.numeric(as.factor(Climate_parameter))-2)/8), shape=21, size=2, alpha=0.8)+
+  geom_vline(xintercept=0)+
+  facet_grid(Species~.)+
+  scale_fill_brewer(type="div", palette="RdYlBu", name="Climate parameter")+
+  scale_x_continuous(limits=c(min(dsum$Organismal_expected2096), max(dsum$Organismal_expected2096)), labels=seq(-1, 2.5, by=0.5), breaks=seq(-1, 2.5, by=0.5))+
+  xlab("Proportional change in organismal factor")+
+  ggtitle("Tropical Indian/Pacific")+
+  ylab("")+
+  theme_bw()+
+  theme(panel.grid=element_blank(), strip.background=element_blank(), legend.position=c(0.7,0.9), legend.background=element_rect(color="black", fill="white"), strip.text = element_text(face = "italic", size=7), plot.title = element_text(hjust=0.5))
+
+p<-ptemp|ptrop
+
+ggsave(filename="Quantitative figure.png", p, width=8.5, height=10, units="in", dpi=400, device="png")
 ```
 
