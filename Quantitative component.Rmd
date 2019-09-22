@@ -9,13 +9,24 @@ require(readxl)
 require(patchwork)
 ```
 
+Oxygen (mol/m3) * 32 = Oxygen (mg/L)
+
 ```{r}
 dorg<-read_excel("Quantitative component species list.xlsx", sheet="Organismal factors")%>%
   mutate(Include=replace_na(Include, TRUE))%>%
   filter(Include)%>%
   rename(Specific_location=Climate_location)
+
 dclim<-read_excel("Quantitative component species list.xlsx", sheet="Climate factors")%>%
+  mutate(Temperature_Extreme=Temperature+Temperature_SD,
+         pH_Extreme=pH-pH_SD,
+         Salinity_Extreme=Salinity-Salinity_SD,
+         Oxygen=Oxygen_molm3*32,
+         Oxygen_Extreme=(Oxygen_molm3-Oxygen_molm3_SD)*32)%>%
+  select(-Salinity_SD, -Temperature_SD, -pH_SD, -Oxygen_molm3, -Oxygen_molm3_SD)%>%
   gather(-Region, -Specific_location, key="Climate_parameter", value="Climate_expected2096")%>%
+  separate(Climate_parameter, into=c("Climate_parameter", "Intensity"), sep="_", fill="right")%>%
+  mutate(Intensity=replace_na(Intensity, "Mean"))%>%
   drop_na()
 
 d<-dorg%>%
@@ -33,8 +44,9 @@ dsum<-d%>%
   mutate(Organismal_parameter=recode(Organismal_parameter, Growth="Growth rate"))%>%
   mutate(Climate_conversion=(Climate_expected2096-Climate_control)/(Climate_treatment-Climate_control), #Create factor to convert experimental range to expected change by applying (expected change)/(measured change)
          Organismal_expected2096=((Organismal_treatment-Organismal_control)/Organismal_control)*Climate_conversion)%>% #Calculate rough effect size as (difference in organismal parameter)/(control organismal parameter level), then scale by climate conversion factor
-  group_by(Species, Region, Climate_parameter, Organismal_parameter)%>%
+  group_by(Species, Region, Climate_parameter, Organismal_parameter, Intensity)%>%
   summarise(Organismal_expected2096=mean(Organismal_expected2096))%>%
+  ungroup()%>%
   mutate(Organismal_parameter=factor(Organismal_parameter, levels=c("Phenology", "Swimming speed", "Survival", "Feeding", "Size", "Development", "Growth rate", "PLD", "Habitat detection")))
 
 
@@ -48,31 +60,33 @@ dsum<-d%>%
 ```
 
 ```{r}
-ptemp<-ggplot(filter(dsum, Region=="Temperate East Pacific")%>%droplevels(), aes(x=Organismal_expected2096, y=Organismal_parameter, fill=Climate_parameter))+
+ptemp<-ggplot(filter(dsum, Region=="Temperate East Pacific")%>%droplevels(), aes(x=Organismal_expected2096, y=Organismal_parameter, color=Climate_parameter, shape=Intensity))+
   geom_blank(aes(y=Organismal_parameter))+
-  geom_point(aes(y=as.numeric(Organismal_parameter)+(as.numeric(as.factor(Climate_parameter))-2)/(8/(7/9))), shape=21, size=2, alpha=0.8)+
+  geom_point(aes(y=as.numeric(Organismal_parameter)+(as.numeric(as.factor(Climate_parameter))-2)/(8/(7/9))), size=2, alpha=0.8, fill="white", stroke=1.5)+
   geom_vline(xintercept=0)+
-  facet_grid(Species~.)+
-  scale_fill_brewer(type="div", palette="RdYlBu", name="Climate parameter")+
+  facet_wrap(~Species, ncol=1)+
+  scale_color_colorblind(name="Climate parameter", guide="none")+
+  scale_shape_manual(values=c(21,16))+
   scale_x_continuous(limits=c(min(dsum$Organismal_expected2096), max(dsum$Organismal_expected2096)), labels=seq(-1, 2.5, by=0.5), breaks=seq(-1, 2.5, by=0.5))+
   xlab("Proportional change in organismal factor")+
   ylab("Organismal factor")+
   ggtitle("Temperate East Pacific")+
   theme_bw()+
-  theme(panel.grid=element_blank(), legend.position="none", strip.background=element_blank(), strip.text = element_text(face = "italic", size=7), plot.title = element_text(hjust=0.5))
+  theme(panel.grid=element_blank(), legend.position=c(0.8,0.07), strip.background=element_blank(), text = element_text(size = 12), strip.text = element_text(face = "italic", size=10), plot.title = element_text(hjust=0.5), panel.spacing = unit(0, "in"), legend.background=element_rect(color="black", fill="white"))
 
-ptrop<-ggplot(filter(dsum, Region=="Tropical Indian/Pacific"), aes(x=Organismal_expected2096, y=Organismal_parameter, fill=Climate_parameter))+
+ptrop<-ggplot(filter(dsum, Region=="Tropical Indian/Pacific"), aes(x=Organismal_expected2096, y=Organismal_parameter, color=Climate_parameter, shape=Intensity))+
   geom_blank(aes(y=Organismal_parameter))+
-  geom_point(aes(y=as.numeric(Organismal_parameter)+(as.numeric(as.factor(Climate_parameter))-2)/8), shape=21, size=2, alpha=0.8)+
+  geom_point(aes(y=as.numeric(Organismal_parameter)+(as.numeric(as.factor(Climate_parameter))-2)/8), fill="white", size=2, alpha=0.8, stroke=1.5)+
   geom_vline(xintercept=0)+
-  facet_grid(Species~.)+
-  scale_fill_brewer(type="div", palette="RdYlBu", name="Climate parameter")+
+  facet_wrap(~Species, ncol = 1)+
+  scale_color_colorblind(name="Climate factor")+
+  scale_shape_manual(values=c(21,16), guide="none")+
   scale_x_continuous(limits=c(min(dsum$Organismal_expected2096), max(dsum$Organismal_expected2096)), labels=seq(-1, 2.5, by=0.5), breaks=seq(-1, 2.5, by=0.5))+
   xlab("Proportional change in organismal factor")+
   ggtitle("Tropical Indian/Pacific")+
   ylab("")+
   theme_bw()+
-  theme(panel.grid=element_blank(), strip.background=element_blank(), legend.position=c(0.7,0.9), legend.background=element_rect(color="black", fill="white"), strip.text = element_text(face = "italic", size=7), plot.title = element_text(hjust=0.5))
+  theme(panel.grid=element_blank(), strip.background=element_blank(), legend.position=c(0.77,0.1), legend.background=element_rect(color="black", fill="white"), text = element_text(size = 12), strip.text = element_text(face = "italic", size=10), plot.title = element_text(hjust=0.5), panel.spacing = unit(0, "in"))
 
 p<-ptemp|ptrop
 
