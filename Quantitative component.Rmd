@@ -1,6 +1,8 @@
 ---
 title: "Quantitative component"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r}
@@ -37,10 +39,13 @@ dsum<-d%>%
   #Divide growth by days to get growth rate
   mutate(Organismal_treatment=if_else(Organismal_parameter=="Growth", Organismal_treatment/Exposure_days, Organismal_treatment),
          Organismal_control=if_else(Organismal_parameter=="Growth", Organismal_control/Exposure_days, Organismal_control),
-         #Calculate instantaneous mortality/abnormal development rates 
-         Organismal_treatment=if_else(Organismal_parameter%in%c("Survival", "Development") & Organismal_treatment==100, 99.99, Organismal_treatment),
+         Organismal_treatment=if_else(Organismal_parameter=="Mortality rate", 100-(1-exp(Organismal_treatment))*100, Organismal_treatment),
+         Organismal_control=if_else(Organismal_parameter=="Mortality rate", 100-(1-exp(Organismal_control))*100, Organismal_control))%>%
+  mutate(Organismal_parameter=recode(Organismal_parameter, `Mortality rate`="Survival"))%>%
+  #Calculate instantaneous mortality/abnormal development rates 
+  mutate(Organismal_treatment=if_else(Organismal_parameter%in%c("Survival", "Development") & Organismal_treatment==100, 99.99, Organismal_treatment),
          Organismal_control=if_else(Organismal_parameter%in%c("Survival", "Development") & Organismal_control==100, 99.99, Organismal_control))%>%
-         mutate(Organismal_treatment=if_else(Organismal_parameter%in%c("Survival", "Development"), log((100-Organismal_treatment)/100)/Exposure_days, Organismal_treatment),
+  mutate(Organismal_treatment=if_else(Organismal_parameter%in%c("Survival", "Development"), log((100-Organismal_treatment)/100)/Exposure_days, Organismal_treatment),
          Organismal_control=if_else(Organismal_parameter%in%c("Survival", "Development"), log((100-Organismal_control)/100)/Exposure_days, Organismal_control))%>%
   mutate(Organismal_parameter=recode(Organismal_parameter, Growth="Growth rate"))%>%
   mutate(Climate_conversion=(Climate_expected2096-Climate_control)/(Climate_treatment-Climate_control), #Create factor to convert experimental range to expected change by applying (expected change)/(measured change)
