@@ -96,6 +96,6 @@ ptrop<-ggplot(filter(dsum, Region=="Tropical Indian/Pacific"), aes(x=Organismal_
 
 p<-ptemp|ptrop
 
-ggsave(filename="Quantitative figure.png", p, width=8.5, height=10, units="in", dpi=400, device="png")
+ggsave(filename="Quantitative figure.tiff", p, width=8.5, height=10, units="in", dpi=400, device="tiff")
 ```
 
